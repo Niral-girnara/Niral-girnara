@@ -1,0 +1,108 @@
+-- tables schema
+(1) biofuel-production  = Entity, code, year, Biofuel-production
+(2) hydropower-consumption = Entity, code, year, Electricity from hydro
+(3) share-electricity-renewables = Entity, code, year, Renewables
+(4) wind-share-energy = Entity, code, year, wind(% electricity)
+
+
+-- (1) data from table biofuel - production of year 2022
+
+SELECT * 
+FROM renewable_energy.`biofuel-production`
+WHERE year = 2022 and code = "ARG";
+
+
+-- (2) Find the total biofuel production for each entity in table 1:
+SELECT Entity, SUM(`Biofuels production - TWh`) AS total_biofuel
+FROM renewable_energy.`biofuel-production`
+GROUP BY Entity;
+
+
+-- (3)List entities with their electricity from hydro in table 2 for the year 2020:
+SELECT Entity, `Electricity from hydro (TWh)`
+FROM renewable_energy.`hydropower-consumption`
+WHERE year = 2020;
+
+
+
+-- (4) Calculate the average wind percentage for all entities in table 4:
+SELECT AVG(`Wind (% equivalent primary energy)`) AS average_wind_percent
+FROM renewable_energy.`wind-share-energy`;
+
+
+
+-- (5) Find the maximum renewable energy production for each entity in table 3
+SELECT Entity, MAX(`Renewables (% electricity)`) AS max_renewables
+FROM renewable_energy.`share-electricity-renewables`
+GROUP BY Entity
+limit 10;
+
+
+ -- (6)List all entities with non-zero wind percentage in table 4:
+ 
+ SELECT count(Entity) 
+ FROM  renewable_energy.`wind-share-energy`
+ WHERE `Wind (% equivalent primary energy)` > 0;
+
+
+
+-- (7)  Retrieve the distinct years present in tables 1 and 2:
+SELECT count(DISTINCT year) 
+FROM renewable_energy.`biofuel-production`
+UNION
+SELECT  count(DISTINCT year) FROM renewable_energy.`hydropower-consumption` ;
+
+
+
+-- (8) Count the number of records in table 3 for each year:
+SELECT year, COUNT(*) AS record_count
+FROM renewable_energy.`share-electricity-renewables`
+GROUP BY year;
+
+
+
+-- (9) rank entities from table 3 based on the highest renewable energy production for each year 
+SELECT distinct (year), Entity, `Wind (% equivalent primary energy)` ,      
+				RANK() OVER (PARTITION BY year ORDER BY `Wind (% equivalent primary energy)` DESC) AS rank_renewables
+FROM  renewable_energy.`wind-share-energy`;
+
+
+
+-- (10) Calculate the cumulative biofuel production for each entity in table 1 over the years:
+SELECT Entity, year,`Biofuels production - TWh`,
+        SUM(`Biofuels production - TWh`) OVER (PARTITION BY Entity ORDER BY year) AS cumulative_biofuel
+FROM renewable_energy.`biofuel-production`;
+
+
+
+ 
+ -- (11) Calculate the yearly growth rate of biofuel production for each entity in table 1:
+ SELECT Entity, year,`Biofuels production - TWh` ,
+       ((`Biofuels production - TWh` -LAG(`Biofuels production - TWh`) OVER (PARTITION BY Entity ORDER BY year)) / LAG(`Biofuels production - TWh`) OVER (PARTITION BY Entity ORDER BY year)) * 100 AS growth_rate
+FROM renewable_energy.`biofuel-production`;
+
+
+
+-- (12) Identify entities in table 3 where renewables have increased for three consecutive years:
+SELECT Entity, year, `Renewables (% electricity)`
+FROM (
+    SELECT Entity, year, `Renewables (% electricity)`,
+           LAG(`Renewables (% electricity)`) OVER (PARTITION BY Entity ORDER BY year) AS prev_renewables,
+           LAG(`Renewables (% electricity)`, 2) OVER (PARTITION BY Entity ORDER BY year) AS prev_prev_renewables
+    FROM renewable_energy.`share-electricity-renewables`
+) subquery
+WHERE `Renewables (% electricity)` > prev_renewables AND prev_renewables > prev_prev_renewables;
+
+
+
+
+-- (13) List entities in table 1 where biofuel production is within the top 10% for the respective year:
+SELECT Entity, year, `Biofuels production - TWh`
+FROM (
+    SELECT Entity, year, `Biofuels production - TWh`,
+           PERCENT_RANK() OVER (PARTITION BY year ORDER BY `Biofuels production - TWh` DESC) AS percentile_rank
+    FROM renewable_energy.`biofuel-production`
+) subquery
+WHERE percentile_rank <= 0.1;
+
+
